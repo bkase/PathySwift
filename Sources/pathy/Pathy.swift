@@ -57,13 +57,42 @@ indirect enum _Path<K: PathKind, T: FileType> {
     case parentIn(_Path<K, T>)
 }
 
+
+extension _Path {
+    private func getDescription(first: Bool) -> String {
+        switch self {
+        case ._root where first:
+            return "/"
+        case ._root:
+            return ""
+        case ._current:
+            return "."
+        case let .fileIn(p, name):
+            return p.getDescription(first: false) + "/" + name.s
+        case let .dirIn(p, name):
+            return p.getDescription(first: false) + "/" + name.s
+        case let .parentIn(p):
+            return p.getDescription(first: false) + "/.."
+        }
+    }
+    var description: String {
+        return getDescription(first: true)
+    }
+}
+
 // we use a public struct wrapper to hide the implementation details for the _Path enum
 public struct Path<K: PathKind, T: FileType> {
-    fileprivate let p: _Path<K, T>
+    let p: _Path<K, T>
     
-    fileprivate init(_ p: _Path<K, T>) {
+    init(_ p: _Path<K, T>) {
         self.p = p
     }
+}
+
+extension Path {
+  var description: String {
+    return p.description
+  }
 }
 
 /**
@@ -83,8 +112,9 @@ func _path(rawFile: String) -> _Path<Unknown, File>? {
     
     let allChunks = rawFile.split(separator: "/").map { String($0) }
     guard let lastChunk = allChunks.last, lastChunk != "." && lastChunk != ".." else { return nil }
+  
     let headChunks = allChunks.dropLast()
-    let prefix = Array(headChunks)
+    let prefix = Array(headChunks.reversed())
         .filter{ $0 != "" }
         .reduce(rawFile.characters.first == "/" ? ._root : ._current) { (path: _Path<Unknown, File>, chunk: String) -> _Path<Unknown, File> in
             switch chunk {
@@ -354,25 +384,17 @@ func dir(_ name: DirName) -> Path<Relative, Directory> {
 }
 let parent: Path<Relative, Directory> = Path(.parentIn(._current))
 
-
-
-/*extension Path where T == Directory {
+extension Path where T == Directory {
     func join<T2>(with path: Path<Relative, T2>) -> Path<K, T2> {
-        switch (self.p, path.p) {
-        case (.root, .root):
-            return Path(p: .root)
-        case (._current, ._current):
-            return Path(p: ._current)
-        case let (p1, .root):
-            fatalError("Unreachable")
-        }
+      let joined: _Path<K, T2> = self.p.join(path.p)
+      return Path<K, T2>(joined)
     }
 }
 
 infix operator <%>: AdditionPrecedence
-static func <%><K, T2>(lhs: Path<K, Directory>, rhs: Path<Relative, T2>) -> Path<K, T2> {
+func <%><K, T2>(lhs: Path<K, Directory>, rhs: Path<Relative, T2>) -> Path<K, T2> {
     return lhs.join(with: rhs)
-}*/
+}
 
 extension Path where K == Unknown, T == Unknown {
     init?(rawString: String) {
